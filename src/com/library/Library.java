@@ -1,7 +1,8 @@
 package com.library;
 
-import java.nio.channels.MembershipKey;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -70,6 +71,8 @@ public class Library {
 		int indexOf = this.books.indexOf(book);
 		Book book2 = this.books.get(indexOf);
 		book2.setAvailableInLibrary(Boolean.FALSE);
+		book2.setIssueDate(Calendar.getInstance());
+		book.setIssueDate(book2.getIssueDate());
 		m1.addBook(book);
 	}
 
@@ -103,6 +106,25 @@ public class Library {
 		
 	}
 
+	public Receipt returnBook(Member m, Book b1) {
+		LibraryPlan libraryPlan = m.getPlan().get();
+		Integer extraDay = getExtraDays(b1.getIssueDate(), Calendar.getInstance());
+		Double extraDayCharges = extraDay > 0 ? extraDay * libraryPlan.getExtraDayCharges()  : 0d;
+		Receipt receipt = new Receipt(extraDayCharges);
+		resetBookForNextIssue(b1);
+		MemberImpl mpl = (MemberImpl) m;
+		mpl.getBooks().remove(b1);
+		return receipt;
+	}
 
+	private void resetBookForNextIssue(Book b1){
+		Optional<Book> findFirst = this.books.stream().filter(b-> b1.getBookId().equals(b.getBookId())).findFirst();
+		if(findFirst.isPresent()){
+			findFirst.get().setAvailableInLibrary(Boolean.TRUE);
+		}
+	}
+	private Integer getExtraDays(Calendar smallDate , Calendar bigDate){
+		return (int) ((bigDate.getTimeInMillis() - smallDate.getTimeInMillis()) / (24 * 60 * 60 * 1000));
+	}
 	
 }

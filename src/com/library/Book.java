@@ -1,5 +1,6 @@
 package com.library;
 
+import java.util.Calendar;
 import java.util.Optional;
 
 public class Book {
@@ -10,6 +11,7 @@ public class Book {
 	private String title;
 	private Integer bookId;
 	private boolean availableInLibrary;
+	private Calendar issueDate;
 	public Book(Optional<Category> category , Optional<Language> language, String version, String title) {
 		this.category = category.get();
 		this.language = language.get();
@@ -49,9 +51,12 @@ public class Book {
 		this.availableInLibrary = availableInLibrary;
 	}
 
+	public Calendar getIssueDate() {
+		return issueDate;
+	}
 
-
-
-	
+	public void setIssueDate(Calendar issueDate) {
+		this.issueDate = issueDate;
+	}
 	
 }

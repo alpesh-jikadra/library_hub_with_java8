@@ -1,6 +1,7 @@
 package com.library;
 
 
+import java.util.Calendar;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -8,8 +9,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
+import org.mockito.MockingDetails;
+import org.mockito.Mockito;
+import org.mockito.stubbing.OngoingStubbing;
 
 import com.library.exception.InvalidBookCategory;
 import com.library.exception.InvalidBookLanguage;
@@ -18,10 +24,10 @@ import com.library.exception.NoBookAvailable;
 
 public class TestLibrary {
 
-	private static Library library = new Library();
+	private Library library = new Library();
 	
-	@BeforeClass
-	public static void setup() throws InvalidBookCategory, InvalidBookLanguage{
+	@Before
+	public void setup() throws InvalidBookCategory, InvalidBookLanguage{
 		Book b1 = new Book(Category.getCategory("Arts"), Language.getLanguage("English"),"1","Art Title");
 		Assert.assertTrue(library.addBook(b1));
 		Book b2 = new Book(Category.getCategory("Arts"), Language.getLanguage("Hindi"),"1","Art Title");
@@ -97,12 +103,55 @@ public class TestLibrary {
 	}
 	@Test(expected=NoBookAvailable.class)
 	public void shouldThrowBookNotAvailable() throws InvalidMembershipPlan, InvalidBookCategory, InvalidBookLanguage, NoBookAvailable{
-		Library l = new Library();
 		Category arts = Category.getCategory("Arts").get();
-		l.getBooks().addAll(l.getBooks().stream().filter(b -> !b.getCategory().equals(arts)).collect(Collectors.toList()));
-		Member m  = l.issueMembership("Alpesh", "Ivory");
+		List<Book> collect = library.getBooks().stream().filter(b -> !b.getCategory().equals(arts)).collect(Collectors.toList());
+		library.getBooks().clear();
+		library.getBooks().addAll(collect);
+		Member m  = library.issueMembership("Alpesh", "Ivory");
 		Book b1 = new Book(Category.getCategory("Arts"), Language.getLanguage("English"),"1","Art Title");
-		l.issueBook(m , b1);
+		library.issueBook(m , b1);
 		Assert.fail("This statement must not be exexute");
+	}
+	@Test
+	public void sholdPrintReceiptOnBookReturn() throws InvalidMembershipPlan, InvalidBookCategory, InvalidBookLanguage, NoBookAvailable{
+		Double seventyPerDay = 70d;
+		Integer extraDay = 2;
+		Library library = Mockito.spy(Library.class);
+		Mockito.doCallRealMethod().when(library).issueMembership("Alpesh", "Ivory");
+		Member member = Mockito.spy(library.issueMembership("Alpesh", "Ivory"));
+		Optional<LibraryPlan> lb = LibraryPlan.getPlan("Ivory");
+		LibraryPlan spy = Mockito.spy(lb.get());
+		Book book = Mockito.mock(Book.class);
+		Mockito.doNothing().when(library).issueBook(member, book);
+		Mockito.when(member.getPlan()).thenReturn(Optional.of(spy));
+		//set Extra day Charge regardless of plan
+		Mockito.when(spy.getExtraDayCharges()).thenReturn(seventyPerDay);
+		
+		Calendar issueDate = Calendar.getInstance();
+		issueDate.set(Calendar.DATE,issueDate.get(Calendar.DATE) - extraDay ); //Set 2 days in delay to return book
+		Mockito.doReturn(issueDate).when(book).getIssueDate();
+		
+		Mockito.doCallRealMethod().when(library).returnBook(member, book);
+		Receipt returnBook = library.returnBook(member, book);
+		Assert.assertEquals("You have to pay extra Day charge(s) "+seventyPerDay*extraDay, returnBook.getReceipt());
+		Calendar todayIssueDate = Calendar.getInstance();
+		Mockito.doReturn(todayIssueDate).when(book).getIssueDate();
+		returnBook = library.returnBook(member, book);
+		Assert.assertEquals("No Dues", returnBook.getReceipt());
+	}
+	
+	@Test
+	public void shouldRestTheBookForNextIssue() throws NoBookAvailable, InvalidMembershipPlan, InvalidBookCategory, InvalidBookLanguage{
+		Member m = library.issueMembership("Alpesh", "Ivory");
+		Book b1 = new Book(Category.getCategory("Arts"), Language.getLanguage("English"),"1","Art Title");
+		int beforeIssue = library.getAllAvailableBooksInLibrary().size();
+		library.issueBook(m , b1);
+		int totalBooksWithMember = m.getBooks().size();
+		int afterIssue = library.getAllAvailableBooksInLibrary().size();
+		Assert.assertEquals("Total book "+beforeIssue+" must be dedcuted by 1 ", beforeIssue -1 , afterIssue);
+		library.returnBook(m, m.getBooks().get(0));
+		int afterReturn = library.getAllAvailableBooksInLibrary().size();
+		Assert.assertEquals("Total "+afterIssue+" book must be Increased by 1 ", afterIssue + 1 , afterReturn);
+		Assert.assertEquals("After Returning the book member books collection must be deducted by 1", totalBooksWithMember- 1, m.getBooks().size());
 	}
 }
